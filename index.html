@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI音読コーチ</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f0f8ff; }
+    h1 { color: #333; }
+    textarea.target-text {
+      width: 90%; max-width: 600px; min-height: 120px; padding: 15px; font-size: 20px;
+      font-weight: bold; border: 3px dashed #4CAF50; border-radius: 10px;
+      background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px auto; display: block;
+    }
+    button { font-size: 18px; padding: 12px 24px; margin: 10px; border: none; border-radius: 30px; cursor: pointer; color: white; font-weight: bold; }
+    #startBtn { background-color: #4CAF50; }
+    #stopBtn { background-color: #f44336; display: none; }
+    #submitBtn { background-color: #2196F3; display: none; }
+    #redoBtn { background-color: #9e9e9e; display: none; }
+    .status { margin-top: 20px; font-size: 18px; color: #555; font-weight: bold; }
+    .result-box { margin-top: 30px; text-align: left; background: white; padding: 20px; border-radius: 10px; display: none; max-width: 600px; margin: auto;}
+    audio { margin-top: 20px; width: 80%; max-width: 400px; display: none; margin: auto; }
+  </style>
+</head>
+<body>
+
+  <h1>AI音読コーチ 🎙️</h1>
+  <p>先生からの課題文です。<br>自分が好きな英文に書き換えて練習することもできるよ！</p>
+
+  <textarea class="target-text" id="targetText" placeholder="先生の課題を読み込み中..."></textarea>
+
+  <button id="startBtn" onclick="startRecording()">🎤 録音スタート</button>
+  <button id="stopBtn" onclick="stopRecording()">⏹ 録音ストップ</button>
+  
+  <audio id="audioPlayback" controls></audio><br>
+  <button id="redoBtn" onclick="redoRecording()">🔄 やり直す</button>
+  <button id="submitBtn" onclick="submitAudio()">📤 AIに提出する</button>
+
+  <div id="status" class="status"></div>
+  
+  <div id="resultBox" class="result-box">
+    <h2 style="text-align:center;">🏆 スコア: <span id="score"></span> / 100点</h2>
+    <p id="feedback" style="font-size: 18px; line-height: 1.6; border-left: 5px solid #ff9800; padding-left: 10px;"></p>
+  </div>
+
+  <script>
+    // ==========================================
+    // 設定：さきほど発行したGASのURLをここに貼り付けます！
+    // ==========================================
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbx2srrDX28Q-GfdBJANiuDI_MJcX9QMQiMtZQdbErCinxBlTNH4gr_LwrXEUEBU_YMZ/exec';
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let currentAudioBlob = null;
+
+    // 画面が開いた時に、裏方（GAS）から今日の課題文をもらってくる
+    window.onload = async () => {
+      try {
+        const response = await fetch(GAS_URL);
+        const data = await response.json();
+        document.getElementById('targetText').value = data.targetText;
+      } catch (e) {
+        document.getElementById('targetText').value = "The quick brown fox jumps over the lazy dog.";
+      }
+    };
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+        mediaRecorder.onstop = () => {
+          currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          document.getElementById('audioPlayback').src = URL.createObjectURL(currentAudioBlob);
+          document.getElementById('audioPlayback').style.display = 'block';
+          document.getElementById('submitBtn').style.display = 'inline-block';
+          document.getElementById('redoBtn').style.display = 'inline-block';
+          document.getElementById('status').innerText = "🎧 録音した音声を聞いて、提出するかやり直すか選んでね。";
+        };
+
+        mediaRecorder.start();
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'inline-block';
+        document.getElementById('audioPlayback').style.display = 'none';
+        document.getElementById('submitBtn').style.display = 'none';
+        document.getElementById('redoBtn').style.display = 'none';
+        document.getElementById('resultBox').style.display = 'none';
+        document.getElementById('status').innerText = "🔴 録音中...";
+
+      } catch (err) {
+        alert('エラーの正体: ' + err.name + '\nメッセージ: ' + err.message);
+      }
+    }
+
+    function stopRecording() {
+      mediaRecorder.stop();
+      document.getElementById('stopBtn').style.display = 'none';
+    }
+
+    function redoRecording() {
+      document.getElementById('audioPlayback').style.display = 'none';
+      document.getElementById('submitBtn').style.display = 'none';
+      document.getElementById('redoBtn').style.display = 'none';
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('status').innerText = "もう一度、録音スタートを押してね。";
+      currentAudioBlob = null;
+    }
+
+    function submitAudio() {
+      const studentId = prompt("あなたの出席番号や名前を入力してください", "Student");
+      if (!studentId) return;
+
+      document.getElementById('status').innerText = "AI先生が分析中...⏳ 10秒〜20秒くらい待ってね。";
+      document.getElementById('submitBtn').style.display = 'none';
+      document.getElementById('redoBtn').style.display = 'none';
+      document.getElementById('audioPlayback').style.display = 'none';
+
+      const reader = new FileReader();
+      reader.readAsDataURL(currentAudioBlob);
+      reader.onloadend = async () => {
+        const base64data = reader.result;
+        const targetText = document.getElementById('targetText').value;
+
+        try {
+          // 裏方（GAS）に音声とテキストを送信する！
+          const response = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              audio: base64data,
+              studentId: studentId,
+              targetText: targetText
+            })
+          });
+          
+          const result = await response.json();
+          showResult(result);
+        } catch (error) {
+          document.getElementById('status').innerText = "❌ 通信エラーが発生しました。";
+          document.getElementById('submitBtn').style.display = 'inline-block';
+          document.getElementById('redoBtn').style.display = 'inline-block';
+        }
+      };
+    }
+
+    function showResult(response) {
+      document.getElementById('status').innerText = "✅ 評価完了！";
+      document.getElementById('resultBox').style.display = 'block';
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('startBtn').innerText = "もう一度練習する";
+      
+      if(response.evaluation.error_flag) {
+        document.getElementById('score').innerText = "測定不能";
+        document.getElementById('feedback').innerText = response.evaluation.error_message + "（雑音が多いか、英文が違うかも）";
+      } else {
+        document.getElementById('score').innerText = response.evaluation.total_score_100;
+        document.getElementById('feedback').innerText = response.feedback_for_student.encouraging_message;
+      }
+    }
+  </script>
+</body>
+</html>
