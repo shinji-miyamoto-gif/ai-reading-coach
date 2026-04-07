@@ -72,7 +72,7 @@
 
         mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
         mediaRecorder.onstop = () => {
-          currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          currentAudioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/mp4' });
           document.getElementById('audioPlayback').src = URL.createObjectURL(currentAudioBlob);
           document.getElementById('audioPlayback').style.display = 'block';
           document.getElementById('submitBtn').style.display = 'inline-block';
