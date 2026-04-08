@@ -45,15 +45,18 @@
 
   <script>
     // ==========================================
-    // 設定：さきほど発行したGASのURLをここに貼り付けます！
+    // 設定：発行したGASのURLをここに貼り付けます！
     // ==========================================
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbx2srrDX28Q-GfdBJANiuDI_MJcX9QMQiMtZQdbErCinxBlTNH4gr_LwrXEUEBU_YMZ/exec';
 
-    let mediaRecorder;
-    let audioChunks = [];
     let currentAudioBlob = null;
+    let audioContext;
+    let mediaStreamSource;
+    let processor;
+    let audioData = [];
+    let sampleRate;
+    let globalStream;
 
-    // 画面が開いた時に、裏方（GAS）から今日の課題文をもらってくる
     window.onload = async () => {
       try {
         const response = await fetch(GAS_URL);
@@ -66,21 +69,29 @@
 
     async function startRecording() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
+        globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // 🌟 iPad対策：AIが必ず聞き取れる「WAV形式」の録音システムを手作りする
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        sampleRate = audioContext.sampleRate;
+        mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
+        
+        // 音声を細かく切り刻まず、生のデータとして集める
+        processor = audioContext.createScriptProcessor(4096, 1, 1);
+        audioData = [];
 
-        mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-        mediaRecorder.onstop = () => {
-          currentAudioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/mp4' });
-          document.getElementById('audioPlayback').src = URL.createObjectURL(currentAudioBlob);
-          document.getElementById('audioPlayback').style.display = 'block';
-          document.getElementById('submitBtn').style.display = 'inline-block';
-          document.getElementById('redoBtn').style.display = 'inline-block';
-          document.getElementById('status').innerText = "🎧 録音した音声を聞いて、提出するかやり直すか選んでね。";
+        processor.onaudioprocess = function(e) {
+          const channelData = e.inputBuffer.getChannelData(0);
+          audioData.push(new Float32Array(channelData));
         };
 
-        mediaRecorder.start();
+        mediaStreamSource.connect(processor);
+        processor.connect(audioContext.destination);
+
         document.getElementById('startBtn').style.display = 'none';
         document.getElementById('stopBtn').style.display = 'inline-block';
         document.getElementById('audioPlayback').style.display = 'none';
@@ -90,13 +101,68 @@
         document.getElementById('status').innerText = "🔴 録音中...";
 
       } catch (err) {
-        alert('エラーの正体: ' + err.name + '\nメッセージ: ' + err.message);
+        alert('マイクのエラー: ' + err.message);
       }
     }
 
     function stopRecording() {
-      mediaRecorder.stop();
+      if(processor && mediaStreamSource) {
+        processor.disconnect();
+        mediaStreamSource.disconnect();
+      }
+      if(globalStream) {
+        globalStream.getTracks().forEach(track => track.stop());
+      }
+      
+      // 集めた生の音声データを、WAVファイルにパッケージングする
+      currentAudioBlob = encodeWAV(audioData, sampleRate);
+      
       document.getElementById('stopBtn').style.display = 'none';
+      document.getElementById('audioPlayback').src = URL.createObjectURL(currentAudioBlob);
+      document.getElementById('audioPlayback').style.display = 'block';
+      document.getElementById('submitBtn').style.display = 'inline-block';
+      document.getElementById('redoBtn').style.display = 'inline-block';
+      document.getElementById('status').innerText = "🎧 録音した音声を聞いて、提出するかやり直すか選んでね。";
+    }
+
+    // WAVファイルを作成する魔法の関数
+    function encodeWAV(buffers, sampleRate) {
+      let bufferLength = 0;
+      for (let i = 0; i < buffers.length; i++) bufferLength += buffers[i].length;
+      const wavBuffer = new ArrayBuffer(44 + bufferLength * 2);
+      const view = new DataView(wavBuffer);
+      
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + bufferLength * 2, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, 1, true); // 1 channel
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true); // 16 bit
+      writeString(view, 36, 'data');
+      view.setUint32(40, bufferLength * 2, true);
+      
+      let offset = 44;
+      for (let i = 0; i < buffers.length; i++) {
+        const buffer = buffers[i];
+        for (let j = 0; j < buffer.length; j++) {
+          let sample = Math.max(-1, Math.min(1, buffer[j]));
+          sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+          view.setInt16(offset, sample, true);
+          offset += 2;
+        }
+      }
+      return new Blob([view], { type: 'audio/wav' });
+    }
+
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
     }
 
     function redoRecording() {
@@ -124,7 +190,6 @@
         const targetText = document.getElementById('targetText').value;
 
         try {
-          // 裏方（GAS）に音声とテキストを送信する！
           const response = await fetch(GAS_URL, {
             method: 'POST',
             body: JSON.stringify({
@@ -152,7 +217,7 @@
       
       if(response.evaluation.error_flag) {
         document.getElementById('score').innerText = "測定不能";
-        document.getElementById('feedback').innerText = response.evaluation.error_message + "（雑音が多いか、英文が違うかも）";
+        document.getElementById('feedback').innerText = response.evaluation.error_message ? response.evaluation.error_message : "AIが音声を正しく聞き取れませんでした（雑音が多いか、英文が違うかも）";
       } else {
         document.getElementById('score').innerText = response.evaluation.total_score_100;
         document.getElementById('feedback').innerText = response.feedback_for_student.encouraging_message;
