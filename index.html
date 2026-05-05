@@ -53,7 +53,7 @@
       </select>
     <br>
     <label for="studentName">お名前:</label>
-    <input type="text" id="studentName" placeholder="例: 鈴木">
+    <input type="text" id="studentName" placeholder="例: 大谷翔平">
   </div>
 
   <p>先生からの課題文です。<br>自分が好きな英文に書き換えて練習することもできるよ！</p>
@@ -256,7 +256,7 @@
       localStorage.setItem('savedNumber', number);
       localStorage.setItem('savedName', name);
 
-      // 🌟 番号と名前を合体させる（例: "5番 鈴木"）
+      // 🌟 番号と名前を合体させる（例: "17番 大谷翔平"）
       const studentIdInput = number + "番 " + name;
 
       document.getElementById('status').innerText = "AI先生が分析中...⏳ 10秒〜20秒くらい待ってね。";
