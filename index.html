@@ -7,10 +7,23 @@
   <style>
     body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f0f8ff; }
     h1 { color: #333; }
+    
+    /* 🌟 追加：クラスと名前入力エリアのデザイン */
+    .user-info-box {
+      margin: 20px auto; padding: 15px; background: white; 
+      border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+      display: inline-block; text-align: left;
+    }
+    .user-info-box select, .user-info-box input {
+      font-size: 16px; padding: 5px 10px; margin-bottom: 10px;
+      border-radius: 5px; border: 1px solid #ccc;
+    }
+    .user-info-box label { font-weight: bold; margin-right: 10px; color: #555; }
+
     textarea.target-text {
       width: 90%; max-width: 600px; min-height: 120px; padding: 15px; font-size: 20px;
       font-weight: bold; border: 3px dashed #4CAF50; border-radius: 10px;
-      background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px auto; display: block;
+      background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px auto; display: block;
     }
     button { font-size: 18px; padding: 12px 24px; margin: 10px; border: none; border-radius: 30px; cursor: pointer; color: white; font-weight: bold; }
     #startBtn { background-color: #4CAF50; }
@@ -25,6 +38,20 @@
 <body>
 
   <h1>AI音読コーチ 🎙️</h1>
+  
+  <div class="user-info-box">
+    <label for="classSelect">クラス:</label>
+    <select id="classSelect" onchange="changeClass()">
+      <option value="1A">1年A組</option>
+      <option value="1B">1年B組</option>
+      <option value="2A">2年A組</option>
+      <option value="2B">2年B組</option>
+    </select>
+    <br>
+    <label for="studentId">お名前:</label>
+    <input type="text" id="studentId" placeholder="例: 01 鈴木">
+  </div>
+
   <p>先生からの課題文です。<br>自分が好きな英文に書き換えて練習することもできるよ！</p>
 
   <textarea class="target-text" id="targetText" placeholder="先生の課題を読み込み中..."></textarea>
@@ -45,9 +72,9 @@
 
   <script>
     // ==========================================
-    // 設定：発行したGASのURLをここに貼り付けます！
+    // 設定：発行した最新のGASのURLをここに貼り付けます！
     // ==========================================
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw-mziP_o5YidAkVQ9RA-uNUMP2zNpzIGT4PPimXYyxs9SmyRXIQeoxNXhHnbFXZLFqjA/exec';
+    const GAS_URL = 'ここにGASのウェブアプリURLを貼り付けます';
 
     let currentAudioBlob = null;
     let audioContext;
@@ -57,21 +84,38 @@
     let sampleRate;
     let globalStream;
 
+    // 🌟 画面が開かれた時に、選ばれているクラスの英文を読み込む
     window.onload = async () => {
-      try {
-        const response = await fetch(GAS_URL);
-        const data = await response.json();
-        document.getElementById('targetText').value = data.targetText;
-      } catch (e) {
-        document.getElementById('targetText').value = "The quick brown fox jumps over the lazy dog.";
-      }
+      loadTargetText();
     };
+
+    // 🌟 クラスが変更された時に英文を読み込み直す
+    function changeClass() {
+      loadTargetText();
+    }
+
+    // GASから対象クラスの英文を取ってくる関数
+    async function loadTargetText() {
+      const className = document.getElementById('classSelect').value;
+      document.getElementById('targetText').value = "先生の課題を読み込み中...";
+      try {
+        // GASのURLに「?className=1A」のようにくっつけて質問する
+        const response = await fetch(GAS_URL + "?className=" + className);
+        const data = await response.json();
+        if(data.targetText) {
+          document.getElementById('targetText').value = data.targetText;
+        } else {
+          document.getElementById('targetText').value = "スプレッドシートにシートが見つかりません。";
+        }
+      } catch (e) {
+        document.getElementById('targetText').value = "通信エラー: 課題文が読み込めません。";
+      }
+    }
 
     async function startRecording() {
       try {
         globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
-        // 🌟 iPad対策：AIが必ず聞き取れる「WAV形式」の録音システムを手作りする
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
@@ -80,7 +124,6 @@
         sampleRate = audioContext.sampleRate;
         mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
         
-        // 音声を細かく切り刻まず、生のデータとして集める
         processor = audioContext.createScriptProcessor(4096, 1, 1);
         audioData = [];
 
@@ -114,7 +157,6 @@
         globalStream.getTracks().forEach(track => track.stop());
       }
       
-      // 集めた生の音声データを、WAVファイルにパッケージングする
       currentAudioBlob = encodeWAV(audioData, sampleRate);
       
       document.getElementById('stopBtn').style.display = 'none';
@@ -125,7 +167,7 @@
       document.getElementById('status').innerText = "🎧 録音した音声を聞いて、提出するかやり直すか選んでね。";
     }
 
-    // WAVファイルを作成する魔法の関数
+    // iPad特有のバグを防ぐためのWAVエンコード魔法
     function encodeWAV(buffers, sampleRate) {
       let bufferLength = 0;
       for (let i = 0; i < buffers.length; i++) bufferLength += buffers[i].length;
@@ -175,8 +217,14 @@
     }
 
     function submitAudio() {
-      const studentId = prompt("あなたの出席番号や名前を入力してください", "Student");
-      if (!studentId) return;
+      // 🌟 クラスと名前の入力を取得する
+      const className = document.getElementById('classSelect').value;
+      const studentIdInput = document.getElementById('studentId').value;
+      
+      if (!studentIdInput) {
+        alert("名前（または出席番号）を入力してください！");
+        return;
+      }
 
       document.getElementById('status').innerText = "AI先生が分析中...⏳ 10秒〜20秒くらい待ってね。";
       document.getElementById('submitBtn').style.display = 'none';
@@ -194,7 +242,8 @@
             method: 'POST',
             body: JSON.stringify({
               audio: base64data,
-              studentId: studentId,
+              studentId: studentIdInput, // 入力された名前を送る
+              className: className,      // 選ばれたクラス名を送る
               targetText: targetText
             })
           });
@@ -215,12 +264,15 @@
       document.getElementById('startBtn').style.display = 'inline-block';
       document.getElementById('startBtn').innerText = "もう一度練習する";
       
-      if(response.evaluation.error_flag) {
+      if(response.evaluation && response.evaluation.error_flag) {
         document.getElementById('score').innerText = "測定不能";
         document.getElementById('feedback').innerText = response.evaluation.error_message ? response.evaluation.error_message : "AIが音声を正しく聞き取れませんでした（雑音が多いか、英文が違うかも）";
-      } else {
+      } else if (response.evaluation) {
         document.getElementById('score').innerText = response.evaluation.total_score_100;
         document.getElementById('feedback').innerText = response.feedback_for_student.encouraging_message;
+      } else {
+        document.getElementById('score').innerText = "エラー";
+        document.getElementById('feedback').innerText = "データの取得に失敗しました。";
       }
     }
   </script>
