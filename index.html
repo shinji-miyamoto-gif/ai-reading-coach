@@ -1,312 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI音読コーチ</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f0f8ff; }
-    h1 { color: #333; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f0f4f8; color: #333; text-align: center; padding: 20px; margin: 0; }
+    h1 { font-size: 24px; color: #333; margin-bottom: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); max-width: 400px; margin: 0 auto 20px; display: inline-block; text-align: left; }
+    .form-group { margin-bottom: 15px; display: flex; align-items: center; }
+    .form-group label { width: 80px; font-size: 14px; font-weight: bold; color: #555; }
+    .form-group select, .form-group input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
     
-    /* 🌟 クラスと名前入力エリアのデザイン */
-    .user-info-box {
-      margin: 20px auto; padding: 15px; background: white; 
-      border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-      display: inline-block; text-align: left;
-    }
-    .user-info-box select, .user-info-box input {
-      font-size: 16px; padding: 5px 10px; margin-bottom: 10px;
-      border-radius: 5px; border: 1px solid #ccc;
-    }
-    .user-info-box label { font-weight: bold; margin-right: 10px; color: #555; }
-
-    textarea.target-text {
-      width: 90%; max-width: 600px; min-height: 120px; padding: 15px; font-size: 20px;
-      font-weight: bold; border: 3px dashed #4CAF50; border-radius: 10px;
-      background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px auto; display: block;
-    }
-    button { font-size: 18px; padding: 12px 24px; margin: 10px; border: none; border-radius: 30px; cursor: pointer; color: white; font-weight: bold; }
-    #startBtn { background-color: #4CAF50; }
-    #stopBtn { background-color: #f44336; display: none; }
-    #submitBtn { background-color: #2196F3; display: none; }
-    #redoBtn { background-color: #9e9e9e; display: none; }
-    .status { margin-top: 20px; font-size: 18px; color: #555; font-weight: bold; }
-    .result-box { margin-top: 30px; text-align: left; background: white; padding: 20px; border-radius: 10px; display: none; max-width: 600px; margin: auto;}
-    audio { margin-top: 20px; width: 80%; max-width: 400px; display: none; margin: auto; }
+    .instruction { font-size: 14px; color: #555; margin-bottom: 10px; line-height: 1.5; }
+    
+    .text-box { border: 3px dashed #4caf50; padding: 20px; border-radius: 12px; font-size: 18px; font-weight: bold; background: white; max-width: 600px; margin: 0 auto 20px; word-wrap: break-word; }
+    
+    .controls { margin-top: 20px; }
+    .btn { padding: 12px 24px; border: none; border-radius: 30px; font-size: 16px; font-weight: bold; cursor: pointer; margin: 0 10px; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+    
+    .btn-record { background-color: #ff4757; color: white; }
+    .btn-stop { background-color: #57606f; color: white; }
+    .btn-retry { background-color: #a4b0be; color: white; }
+    .btn-submit { background-color: #1e90ff; color: white; }
+    
+    audio { width: 100%; max-width: 400px; margin: 15px auto; display: block; border-radius: 30px; }
+    
+    .footer-text { font-size: 14px; color: #666; margin-top: 20px; }
+    .result-box { margin-top: 20px; padding: 20px; background: #e3f2fd; border-radius: 10px; text-align: left; display: none; }
   </style>
 </head>
 <body>
 
   <h1>AI音読コーチ 🎙️</h1>
   
-  <div class="user-info-box">
-    <label for="classSelect">クラス:</label>
-    <select id="classSelect" onchange="changeClass()">
-      <option value="1-1">1年1組</option>
-      <option value="1-2">1年2組</option>
-      <option value="1-3">1年3組</option>
-    </select>
-    <br>
-    <label for="studentNumber">出席番号:</label>
-    <select id="studentNumber">
+  <div class="card">
+    <div class="form-group">
+      <label>クラス:</label>
+      <select id="classSelect">
+        <option value="1A">1年1組</option>
+        <option value="1B">1年2組</option>
+        <option value="1C">1年3組</option>
       </select>
-    <br>
-    <label for="studentName">お名前:</label>
-    <input type="text" id="studentName" placeholder="例: 大谷翔平">
+    </div>
+    <div class="form-group">
+      <label>名前:</label>
+      <input type="text" id="studentName" placeholder="例: 35 大谷翔平">
+    </div>
   </div>
 
-  <p>先生からの課題文です。<br>自分が好きな英文に書き換えて練習することもできるよ！</p>
-
-  <textarea class="target-text" id="targetText" placeholder="先生の課題を読み込み中..."></textarea>
-
-  <button id="startBtn" onclick="startRecording()">🎤 録音スタート</button>
-  <button id="stopBtn" onclick="stopRecording()">⏹ 録音ストップ</button>
-  
-  <audio id="audioPlayback" controls></audio><br>
-  <button id="redoBtn" onclick="redoRecording()">🔄 やり直す</button>
-  <button id="submitBtn" onclick="submitAudio()">📤 AIに提出する</button>
-
-  <div id="status" class="status"></div>
-  
-  <div id="resultBox" class="result-box">
-    <h2 style="text-align:center;">🏆 スコア: <span id="score"></span> / 100点</h2>
-    <p id="feedback" style="font-size: 18px; line-height: 1.6; border-left: 5px solid #ff9800; padding-left: 10px;"></p>
+  <div class="instruction">
+    先生からの課題文です。<br>
+    自分が好きな英文に書き換えて練習することもできるよ！
   </div>
+
+  <div id="targetText" class="text-box" contenteditable="true">
+    読み込み中...
+  </div>
+  
+  <div>
+    <button id="recordBtn" class="btn btn-record">🔴 録音スタート</button>
+    <button id="stopBtn" class="btn btn-stop" style="display:none;">■ ストップ</button>
+  </div>
+  
+  <audio id="audioPlayback" controls style="display:none;"></audio>
+  
+  <div class="controls" id="actionButtons" style="display:none;">
+    <button id="retryBtn" class="btn btn-retry">🔄 やり直す</button>
+    <button id="submitBtn" class="btn btn-submit">📤 AIに提出する</button>
+  </div>
+
+  <div class="footer-text">
+    🎧 録音した音声を聞いて、提出するかやり直すか選んでね。
+  </div>
+
+  <div id="resultBox" class="result-box"></div>
 
   <script>
     // ==========================================
-    // 設定：発行した最新のGASのURLをここに貼り付けます！
+    // 🚨 最後の仕上げ：GASのURLを貼り付け 🚨
     // ==========================================
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbw-mziP_o5YidAkVQ9RA-uNUMP2zNpzIGT4PPimXYyxs9SmyRXIQeoxNXhHnbFXZLFqjA/exec';
 
-    let currentAudioBlob = null;
-    let audioContext;
-    let mediaStreamSource;
-    let processor;
-    let audioData = [];
-    let sampleRate;
-    let globalStream;
+    let mediaRecorder;
+    let audioChunks = [];
+    let audioBase64 = "";
 
-    // 🌟 画面が開かれた時の処理
-    window.onload = async () => {
-      // 出席番号の選択肢(1〜35)を自動生成
-      const numberSelect = document.getElementById('studentNumber');
-      for (let i = 1; i <= 35; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.text = i + "番";
-        numberSelect.appendChild(option);
-      }
+    const classSelect = document.getElementById('classSelect');
+    const targetTextDiv = document.getElementById('targetText');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const audioPlayback = document.getElementById('audioPlayback');
+    const actionButtons = document.getElementById('actionButtons');
+    const retryBtn = document.getElementById('retryBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const resultBox = document.getElementById('resultBox');
 
-      // ★ 前回入力したデータをブラウザから復元（おまけの便利機能）
-      if (localStorage.getItem('savedClass')) {
-        document.getElementById('classSelect').value = localStorage.getItem('savedClass');
-      }
-      if (localStorage.getItem('savedNumber')) {
-        document.getElementById('studentNumber').value = localStorage.getItem('savedNumber');
-      }
-      if (localStorage.getItem('savedName')) {
-        document.getElementById('studentName').value = localStorage.getItem('savedName');
-      }
-
-      // 課題文の読み込み
-      loadTargetText();
-    };
-
-    // 🌟 クラスが変更された時に英文を読み込み直す
-    function changeClass() {
-      loadTargetText();
-    }
-
-    // GASから対象クラスの英文を取ってくる関数
-    async function loadTargetText() {
-      const className = document.getElementById('classSelect').value;
-      document.getElementById('targetText').value = "先生の課題を読み込み中...";
+    // 1. スプレッドシートから課題文を読み込む
+    async function fetchTask() {
+      targetTextDiv.innerText = "読み込み中...";
       try {
-        const response = await fetch(GAS_URL + "?className=" + className);
-        const data = await response.json();
-        if(data.targetText) {
-          document.getElementById('targetText').value = data.targetText;
-        } else {
-          document.getElementById('targetText').value = "スプレッドシートにシートが見つかりません。";
-        }
+        const res = await fetch(`${GAS_URL}?className=${classSelect.value}`);
+        const data = await res.json();
+        targetTextDiv.innerText = data.targetText || "課題が見つかりません";
       } catch (e) {
-        document.getElementById('targetText').value = "通信エラー: 課題文が読み込めません。";
+        targetTextDiv.innerText = "通信エラー。GASのURLが正しいか確認してください。";
       }
     }
+    classSelect.addEventListener('change', fetchTask);
+    window.addEventListener('load', fetchTask);
 
-    async function startRecording() {
+    // 2. 録音スタート
+    recordBtn.addEventListener('click', async () => {
       try {
-        globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-        
-        sampleRate = audioContext.sampleRate;
-        mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
-        
-        processor = audioContext.createScriptProcessor(4096, 1, 1);
-        audioData = [];
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
 
-        processor.onaudioprocess = function(e) {
-          const channelData = e.inputBuffer.getChannelData(0);
-          audioData.push(new Float32Array(channelData));
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) audioChunks.push(e.data);
         };
 
-        mediaStreamSource.connect(processor);
-        processor.connect(audioContext.destination);
+        mediaRecorder.onstop = () => {
+          // 🌟 iPadエラー回避の魔法のコード！
+          const mimeType = mediaRecorder.mimeType || 'audio/mp4';
+          const audioBlob = new Blob(audioChunks, { type: mimeType });
+          
+          const audioUrl = URL.createObjectURL(audioBlob);
+          audioPlayback.src = audioUrl;
 
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('stopBtn').style.display = 'inline-block';
-        document.getElementById('audioPlayback').style.display = 'none';
-        document.getElementById('submitBtn').style.display = 'none';
-        document.getElementById('redoBtn').style.display = 'none';
-        document.getElementById('resultBox').style.display = 'none';
-        document.getElementById('status').innerText = "🔴 録音中...";
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = () => {
+            audioBase64 = reader.result;
+            audioPlayback.style.display = 'block';
+            actionButtons.style.display = 'block';
+            recordBtn.style.display = 'none';
+          };
+        };
+
+        mediaRecorder.start();
+        recordBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-block';
+        audioPlayback.style.display = 'none';
+        actionButtons.style.display = 'none';
+        resultBox.style.display = 'none';
 
       } catch (err) {
-        alert('マイクのエラー: ' + err.message);
+        alert("マイクの許可が必要です！iPadの設定を確認してください。");
       }
-    }
+    });
 
-    function stopRecording() {
-      if(processor && mediaStreamSource) {
-        processor.disconnect();
-        mediaStreamSource.disconnect();
-      }
-      if(globalStream) {
-        globalStream.getTracks().forEach(track => track.stop());
-      }
-      
-      currentAudioBlob = encodeWAV(audioData, sampleRate);
-      
-      document.getElementById('stopBtn').style.display = 'none';
-      document.getElementById('audioPlayback').src = URL.createObjectURL(currentAudioBlob);
-      document.getElementById('audioPlayback').style.display = 'block';
-      document.getElementById('submitBtn').style.display = 'inline-block';
-      document.getElementById('redoBtn').style.display = 'inline-block';
-      document.getElementById('status').innerText = "🎧 録音した音声を聞いて、提出するかやり直すか選んでね。";
-    }
+    // 3. 録音ストップ
+    stopBtn.addEventListener('click', () => {
+      mediaRecorder.stop();
+      stopBtn.style.display = 'none';
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    });
 
-    // iPad特有のバグを防ぐためのWAVエンコード魔法
-    function encodeWAV(buffers, sampleRate) {
-      let bufferLength = 0;
-      for (let i = 0; i < buffers.length; i++) bufferLength += buffers[i].length;
-      const wavBuffer = new ArrayBuffer(44 + bufferLength * 2);
-      const view = new DataView(wavBuffer);
-      
-      writeString(view, 0, 'RIFF');
-      view.setUint32(4, 36 + bufferLength * 2, true);
-      writeString(view, 8, 'WAVE');
-      writeString(view, 12, 'fmt ');
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true); // PCM
-      view.setUint16(22, 1, true); // 1 channel
-      view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate * 2, true);
-      view.setUint16(32, 2, true);
-      view.setUint16(34, 16, true); // 16 bit
-      writeString(view, 36, 'data');
-      view.setUint32(40, bufferLength * 2, true);
-      
-      let offset = 44;
-      for (let i = 0; i < buffers.length; i++) {
-        const buffer = buffers[i];
-        for (let j = 0; j < buffer.length; j++) {
-          let sample = Math.max(-1, Math.min(1, buffer[j]));
-          sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-          view.setInt16(offset, sample, true);
-          offset += 2;
-        }
-      }
-      return new Blob([view], { type: 'audio/wav' });
-    }
+    // 4. やり直す
+    retryBtn.addEventListener('click', () => {
+      audioPlayback.src = "";
+      audioBase64 = "";
+      audioPlayback.style.display = 'none';
+      actionButtons.style.display = 'none';
+      recordBtn.style.display = 'inline-block';
+    });
 
-    function writeString(view, offset, string) {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    }
-
-    function redoRecording() {
-      document.getElementById('audioPlayback').style.display = 'none';
-      document.getElementById('submitBtn').style.display = 'none';
-      document.getElementById('redoBtn').style.display = 'none';
-      document.getElementById('startBtn').style.display = 'inline-block';
-      document.getElementById('status').innerText = "もう一度、録音スタートを押してね。";
-      currentAudioBlob = null;
-    }
-
-    function submitAudio() {
-      // 🌟 クラス、出席番号、名前を取得する
-      const className = document.getElementById('classSelect').value;
-      const number = document.getElementById('studentNumber').value;
-      const name = document.getElementById('studentName').value;
-      
-      if (!name) {
+    // 5. AIに提出する
+    submitBtn.addEventListener('click', async () => {
+      const studentName = document.getElementById('studentName').value;
+      if (!studentName) {
         alert("名前を入力してください！");
         return;
       }
 
-      // ★ 次回のために、入力された情報をブラウザに保存（おまけ機能）
-      localStorage.setItem('savedClass', className);
-      localStorage.setItem('savedNumber', number);
-      localStorage.setItem('savedName', name);
+      submitBtn.disabled = true;
+      submitBtn.innerText = "⏳ 送信中...";
 
-      // 🌟 番号と名前を合体させる（例: "17番 大谷翔平"）
-      const studentIdInput = number + "番 " + name;
-
-      document.getElementById('status').innerText = "AI先生が分析中...⏳ 10秒〜20秒くらい待ってね。";
-      document.getElementById('submitBtn').style.display = 'none';
-      document.getElementById('redoBtn').style.display = 'none';
-      document.getElementById('audioPlayback').style.display = 'none';
-
-      const reader = new FileReader();
-      reader.readAsDataURL(currentAudioBlob);
-      reader.onloadend = async () => {
-        const base64data = reader.result;
-        const targetText = document.getElementById('targetText').value;
-
-        try {
-          const response = await fetch(GAS_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-              audio: base64data,
-              studentId: studentIdInput, // 「17番 大谷翔平」の形で送る
-              className: className,
-              targetText: targetText
-            })
-          });
-          
-          const result = await response.json();
-          showResult(result);
-        } catch (error) {
-          document.getElementById('status').innerText = "❌ 通信エラーが発生しました。";
-          document.getElementById('submitBtn').style.display = 'inline-block';
-          document.getElementById('redoBtn').style.display = 'inline-block';
-        }
+      const payload = {
+        className: classSelect.value,
+        studentId: studentName,
+        targetText: targetTextDiv.innerText,
+        audio: audioBase64
       };
-    }
 
-    function showResult(response) {
-      document.getElementById('status').innerText = "✅ 評価完了！";
-      document.getElementById('resultBox').style.display = 'block';
-      document.getElementById('startBtn').style.display = 'inline-block';
-      document.getElementById('startBtn').innerText = "もう一度練習する";
-      
-      if(response.evaluation && response.evaluation.error_flag) {
-        document.getElementById('score').innerText = "測定不能";
-        document.getElementById('feedback').innerText = response.evaluation.error_message ? response.evaluation.error_message : "AIが音声を正しく聞き取れませんでした（雑音が多いか、英文が違うかも）";
-      } else if (response.evaluation) {
-        document.getElementById('score').innerText = response.evaluation.total_score_100;
-        document.getElementById('feedback').innerText = response.feedback_for_student.encouraging_message;
-      } else {
-        document.getElementById('score').innerText = "エラー";
-        document.getElementById('feedback').innerText = "データの取得に失敗しました。";
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        resultBox.style.display = 'block';
+        if (result.evaluation && result.evaluation.error_flag) {
+          resultBox.innerHTML = `<span style="color:red">エラー: ${result.evaluation.error_message}</span>`;
+        } else {
+          resultBox.innerHTML = `<b>🎉 AI先生からのメッセージ</b><br><br>${result.feedback_for_student.encouraging_message}`;
+        }
+      } catch (e) {
+        alert("送信に失敗しました。");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "📤 AIに提出する";
       }
-    }
+    });
   </script>
 </body>
 </html>
