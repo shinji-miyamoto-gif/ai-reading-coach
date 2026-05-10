@@ -14,6 +14,7 @@
         button { padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 25px; transition: 0.3s; margin: 5px; font-weight: bold; }
         #recordBtn { background-color: #ff5252; color: white; }
         #submitBtn { background-color: #2196f3; color: white; display: none; }
+        #audioPlayer { width: 100%; margin-top: 15px; display: none; }
         #result { margin-top: 20px; padding: 15px; border-radius: 10px; background-color: #e3f2fd; display: none; text-align: left; }
         .score-display { font-size: 32px; color: #ff5722; font-weight: bold; text-align: center; margin-bottom: 10px; border-bottom: 2px solid #ff5722; padding-bottom: 5px; }
     </style>
@@ -33,7 +34,8 @@
         </div>
         <div class="form-group">
             <label>出席番号：</label>
-            <select id="numberSelect"></select> </div>
+            <select id="numberSelect"></select>
+        </div>
         <div class="form-group">
             <label>お名前：</label>
             <input type="text" id="nameInput" placeholder="例：大谷 翔平">
@@ -43,6 +45,7 @@
         <div id="targetText">読み込み中...</div>
 
         <button id="recordBtn">🔴 録音スタート</button>
+        <audio id="audioPlayer" controls></audio>
         <button id="submitBtn">📩 AIに提出する</button>
 
         <div id="result">
@@ -52,21 +55,18 @@
     </div>
 
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbw-mziP_o5YidAkVQ9RA-uNUMP2zNpzIGT4PPimXYyxs9SmyRXIQeoxNXhHnbFXZLFqjA/exec";
+        const GAS_URL = "★ここにあなたのGASのURLを貼り付け★";
 
-        // 出席番号のプルダウン(1-35)を自動作成
         const numberSelect = document.getElementById('numberSelect');
         for (let i = 1; i <= 35; i++) {
             let opt = document.createElement('option');
-            opt.value = i;
-            opt.innerHTML = i + "番";
+            opt.value = i; opt.innerHTML = i + "番";
             numberSelect.appendChild(opt);
         }
 
         let mediaRecorder;
         let audioChunks = [];
 
-        // 課題文の取得
         async function fetchTask() {
             const className = document.getElementById('classSelect').value;
             try {
@@ -74,37 +74,43 @@
                 const data = await res.json();
                 document.getElementById('targetText').innerText = data.targetText;
             } catch (e) {
-                document.getElementById('targetText').innerText = "課題の読み込みに失敗しました。";
+                document.getElementById('targetText').innerText = "通信エラー。GASのURLが正しいか確認してください。";
             }
         }
         fetchTask();
-        document.getElementById('classSelect').addEventListener('change', fetchTask);
+        document.getElementById('classSelect').onchange = fetchTask;
 
-        // 録音処理
         document.getElementById('recordBtn').onclick = async () => {
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 document.getElementById('recordBtn').innerText = "🔴 録音スタート";
-                document.getElementById('submitBtn').style.display = "inline-block";
             } else {
                 audioChunks = [];
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const url = URL.createObjectURL(blob);
+                    const player = document.getElementById('audioPlayer');
+                    player.src = url;
+                    player.style.display = "block";
+                    document.getElementById('submitBtn').style.display = "inline-block";
+                };
                 mediaRecorder.start();
                 document.getElementById('recordBtn').innerText = "⏹️ 録音を終了";
+                document.getElementById('audioPlayer').style.display = "none";
                 document.getElementById('submitBtn').style.display = "none";
             }
         };
 
-        // 提出処理
         document.getElementById('submitBtn').onclick = async () => {
             const blob = new Blob(audioChunks, { type: 'audio/wav' });
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = async () => {
-                document.getElementById('submitBtn').innerText = "解析中...";
-                document.getElementById('submitBtn').disabled = true;
+                const btn = document.getElementById('submitBtn');
+                btn.innerText = "解析中..."; btn.disabled = true;
 
                 const payload = {
                     className: document.getElementById('classSelect').value,
@@ -116,15 +122,14 @@
                 try {
                     const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload) });
                     const data = await res.json();
-                    
                     document.getElementById('result').style.display = "block";
-                    document.getElementById('scoreArea').innerText = (data.total_score_100 || data.total_score) + "点";
-                    document.getElementById('messageArea').innerText = data.feedback_for_student?.encouraging_message || data.feedback || "解析完了しました。";
+                    document.getElementById('scoreArea').innerText = (data.total_score_100 || "0") + "点";
+                    document.getElementById('messageArea').innerText = data.feedback_for_student?.encouraging_message || "フィードバックを取得できませんでした。";
+                    window.scrollTo(0, document.body.scrollHeight);
                 } catch (e) {
                     alert("送信に失敗しました。");
                 } finally {
-                    document.getElementById('submitBtn').innerText = "📩 AIに提出する";
-                    document.getElementById('submitBtn').disabled = false;
+                    btn.innerText = "📩 AIに提出する"; btn.disabled = false;
                 }
             };
         };
