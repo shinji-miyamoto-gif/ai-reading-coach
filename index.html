@@ -204,6 +204,19 @@
         audio: audioBase64
       };
 
+      // AIの返信から「スコア」という文字を探して取り出す処理の例
+      const aiResponse = data.message; // AIからの生の文章
+      const scoreMatch = aiResponse.match(/スコア：?(\d+)/);
+      const score = scoreMatch ? scoreMatch[1] : "--";
+
+      // 画面に表示する
+      resultDiv.innerHTML = `
+        <div style="font-size: 24px; font-weight: bold; color: #ff5722; margin-bottom: 10px;">
+          スコア：${score}点
+        </div>
+        <div>${aiResponse}</div>
+      `;
+      
       try {
         const res = await fetch(GAS_URL, {
           method: 'POST',
